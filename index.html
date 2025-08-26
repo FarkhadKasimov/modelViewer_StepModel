@@ -13,173 +13,76 @@
     model-viewer { width: 100%; height: 100%; background: #111; }
   </style>
 </head>
-
-<!-- Панель Tone Mapping -->
-<div id="tonePanel" style="
-  position:fixed; right:16px; top:16px; z-index:10;
-  display:flex; gap:8px; align-items:center;
-  background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
-  padding:8px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
-  <label for="tone" style="white-space:nowrap;">Tone Mapping:</label>
-  <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
-    <option value="neutral">Neutral</option>
-    <option value="aces">ACES</option>
-    <option value="agx">AgX</option>
-    <option value="cineon">Cineon</option>
-    <option value="reinhard">Reinhard</option>
-    <option value="linear">Linear</option>
-    <option value="none">None</option>
-  </select>
-</div>
-
-<script>
-(() => {
-  const mv = document.querySelector('model-viewer');
-  const toneSel = document.getElementById('tone');
-
-  // Кэш оригинальных параметров материалов, чтобы корректно пересчитывать при каждом выборе
-  const originals = new WeakMap();
-  function cacheOriginals() {
-    if (!mv?.model) return;
-    mv.model.materials?.forEach(mat => {
-      if (originals.has(mat)) return;
-      const pbr = mat.pbrMetallicRoughness;
-      originals.set(mat, {
-        baseColorFactor: [...(pbr?.baseColorFactor ?? [1,1,1,1])],
-        metallicFactor: pbr?.metallicFactor ?? 1,
-        roughnessFactor: pbr?.roughnessFactor ?? 1,
-        emissiveFactor: [...(mat?.emissiveFactor ?? [0,0,0])]
-      });
-    });
-  }
-
-  const clamp01 = x => Math.max(0, Math.min(1, x));
-  const lerp = (a,b,t) => a + (b - a) * t;
-  function desaturate([r,g,b,a=1], amt){
-    const l = 0.2126*r + 0.7152*g + 0.0722*b;
-    return [ lerp(r,l,amt), lerp(g,l,amt), lerp(b,l,amt), a ];
-  }
-  function multColor([r,g,b,a=1], k){
-    return [ clamp01(r*k), clamp01(g*k), clamp01(b*k), a ];
-  }
-  function gammaColor([r,g,b,a=1], gPow){
-    return [ clamp01(Math.pow(r, gPow)), clamp01(Math.pow(g, gPow)), clamp01(Math.pow(b, gPow)), a ];
-  }
-
-  function applyLook(mode){
-    if (!mv?.model) return;
-    cacheOriginals();
-
-    mv.model.materials?.forEach(mat => {
-      const pbr = mat.pbrMetallicRoughness;
-      const o = originals.get(mat);
-      if (!pbr || !o) return;
-
-      // начинаем каждый режим от оригиналов
-      let base = [...o.baseColorFactor];
-      let metallic = o.metallicFactor;
-      let roughness = o.roughnessFactor;
-      let emissive = [...o.emissiveFactor];
-
-      switch(mode){
-        case 'aces':
-          base = desaturate(base, 0.10);            // лёгкая десатурация
-          roughness = clamp01(roughness * 1.05 + 0.02); // мягче хайлайты
-          metallic = clamp01(metallic * 0.98);
-          mv.exposure = 1.00;
-          break;
-
-        case 'agx':
-          base = desaturate(base, 0.15);
-          roughness = clamp01(roughness * 1.12 + 0.03);
-          metallic = clamp01(metallic * 0.95);
-          mv.exposure = 1.05;
-          break;
-
-        case 'cineon':
-          base = gammaColor(base, 0.90);            // приподнять мид-тона
-          roughness = clamp01(roughness * 0.95);
-          mv.exposure = 1.15;
-          break;
-
-        case 'reinhard':
-          base = multColor(base, 0.95);             // слегка приглушить
-          roughness = clamp01(roughness * 1.20 + 0.05);
-          // чуть гасим эмиссию
-          const e4 = multColor([emissive[0], emissive[1], emissive[2], 1], 0.9);
-          emissive = [e4[0], e4[1], e4[2]];
-          mv.exposure = 0.95;
-          break;
-
-        case 'linear':
-          mv.exposure = 1.00;
-          break;
-
-        case 'none':
-          mv.exposure = 1.00;
-          break;
-
-        default: // 'neutral'
-          mv.exposure = 1.00;
-          break;
-      }
-
-      pbr.setBaseColorFactor(base);
-      pbr.metallicFactor = metallic;
-      pbr.roughnessFactor = roughness;
-      mat.emissiveFactor = emissive;
-    });
-
-    // Обновить сцену
-    mv.requestUpdate('scene-graph');
-  }
-
-  // Синхронизируем селект и применяем эффект
-  function syncAndApply(){
-    try { toneSel.value = mv.toneMapping ?? 'neutral'; } catch {}
-    applyLook(toneSel.value);
-  }
-
-  toneSel.addEventListener('input', () => {
-    mv.toneMapping = toneSel.value; // влияет на канвас-рендер
-    applyLook(toneSel.value);       // влияет на материалы модели
-  });
-
-  if (mv?.model) syncAndApply();
-  else mv?.addEventListener('load', syncAndApply, { once:true });
-})();
-</script>
-
 <body>
 
-  <!-- Замените src и ios-src на свои файлы -->
+  <!-- Просмотрщик -->
   <model-viewer
     src="/Models/Step.glb"
     alt="БРАЕР Step"
     ar
-    ar-modes="webxr scene-viewer quick-look "
+    ar-modes="webxr scene-viewer quick-look"
     ar-scale="auto"
     camera-controls
     auto-rotate
     shadow-intensity="0"
     exposure="0.65"
-    
-    disable-zoom
-    >
-    <!-- Кнопка AR появится автоматически, но можно задать свой слот -->
+    tone-mapping="neutral"  <!-- дефолт как в демо -->
+    disable-zoom>
     <button slot="ar-button" style="
       position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
       padding:12px 18px; border:0; border-radius:12px; font:600 16px system-ui;
       background:#fff; color:#111; cursor:pointer;">
       Открыть в AR
     </button>
-
-    <!-- Фолбек, если AR недоступен -->
     <div slot="poster" style="
       display:flex; align-items:center; justify-content:center; height:100%; color:#aaa;">
       Загрузка модели…
     </div>
   </model-viewer>
+
+  <!-- Панель Tone Mapping -->
+  <div id="tonePanel" style="
+    position:fixed; right:16px; top:16px; z-index:10;
+    display:flex; gap:8px; align-items:center;
+    background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
+    padding:8px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
+    <label for="tone" style="white-space:nowrap;">Tone Mapping:</label>
+    <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
+      <option value="neutral">Neutral</option>
+      <option value="aces">ACES</option>
+      <option value="agx">AgX</option>
+      <option value="cineon">Cineon</option>
+      <option value="reinhard">Reinhard</option>
+      <option value="linear">Linear</option>
+      <option value="none">None</option>
+    </select>
+  </div>
+
+  <script>
+  // Скрипт после <model-viewer>, чтобы элемент уже был в DOM
+  (() => {
+    const mv = document.querySelector('model-viewer');
+    const toneSel = document.getElementById('tone');
+
+    function applyTone() {
+      // обновляем превью немедленно
+      mv.toneMapping = toneSel.value;
+      // чтобы пересчёт точно отрисовался
+      mv.requestUpdate('tone-mapping');
+    }
+
+    function syncFromMV() {
+      // выставляем селект = текущему значению компонента
+      try { toneSel.value = mv.toneMapping || 'neutral'; } catch {}
+      applyTone();
+    }
+
+    toneSel.addEventListener('input', applyTone);
+
+    if (mv.model) syncFromMV();
+    else mv.addEventListener('load', syncFromMV, { once: true });
+  })();
+  </script>
 
 </body>
 </html>
