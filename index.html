@@ -13,6 +13,49 @@
     model-viewer { width: 100%; height: 100%; background: #111; }
   </style>
 </head>
+
+<!-- Панель Tone Mapping -->
+<div id="tonePanel" style="
+  position:fixed; right:16px; top:16px; z-index:10;
+  display:flex; gap:8px; align-items:center;
+  background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
+  padding:8px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
+  <label for="tone" style="white-space:nowrap;">Tone Mapping:</label>
+  <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
+    <option value="neutral">Neutral</option>
+    <option value="aces">ACES</option>
+    <option value="agx">AgX</option>
+    <option value="cineon">Cineon</option>
+    <option value="reinhard">Reinhard</option>
+    <option value="linear">Linear</option>
+    <option value="none">None</option>
+  </select>
+</div>
+
+<script>
+(() => {
+  // Берём первый <model-viewer> на странице (твой)
+  const mv = document.querySelector('model-viewer');
+  const toneSel = document.getElementById('tone');
+
+  // Синхронизируем селект с текущим значением
+  const sync = () => {
+    try {
+      toneSel.value = mv.toneMapping ?? 'neutral';
+    } catch(e) { /* безопасно игнорируем */ }
+  };
+
+  // Меняем toneMapping по выбору
+  toneSel.addEventListener('input', () => {
+    mv.toneMapping = toneSel.value;
+  });
+
+  // На всякий случай ждём загрузку модели, потом синхронизируем
+  if (mv?.model) sync();
+  else mv?.addEventListener('load', sync, { once: true });
+})();
+</script>
+
 <body>
 
   <!-- Замените src и ios-src на свои файлы -->
