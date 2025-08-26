@@ -4,21 +4,18 @@
   <meta charset="utf-8" />
   <title>AR модель — model-viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- model-viewer -->
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-
   <style>
     html, body { height: 100%; margin: 0; background:#111; }
     model-viewer { width: 100%; height: 100%; background: #111; }
-    /* Панель скрыта по умолчанию */
     #tonePanel { display:none; }
     #tonePanel.open { display:flex; }
+    .row { display:flex; gap:8px; align-items:center; }
+    .label { white-space:nowrap; margin-right:6px; }
   </style>
 </head>
 <body>
 
-  <!-- Просмотрщик -->
   <model-viewer
     src="/Models/Step.glb"
     alt="БРАЕР Step"
@@ -29,83 +26,99 @@
     auto-rotate
     shadow-intensity="0"
     exposure="0.65"
-    tone-mapping="agx"   <!-- дефолт AgX -->
+    tone-mapping="agx"
     disable-zoom>
-    <button slot="ar-button" style="
-      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
-      padding:12px 18px; border:0; border-radius:12px; font:600 16px system-ui;
-      background:#fff; color:#111; cursor:pointer;">
-      Открыть в AR
-    </button>
-    <div slot="poster" style="
-      display:flex; align-items:center; justify-content:center; height:100%; color:#aaa;">
-      Загрузка модели…
-    </div>
+    <button slot="ar-button" style="position:absolute; left:50%; bottom:16px; transform:translateX(-50%); padding:12px 18px; border:0; border-radius:12px; font:600 16px system-ui; background:#fff; color:#111; cursor:pointer;">Открыть в AR</button>
+    <div slot="poster" style="display:flex; align-items:center; justify-content:center; height:100%; color:#aaa;">Загрузка модели…</div>
   </model-viewer>
 
-  <!-- Кнопка вызова панели -->
-  <button id="uiToggle" aria-pressed="false" style="
-    position:fixed; right:16px; top:16px; z-index:11;
-    padding:10px 12px; border:0; border-radius:12px;
-    background:#1f1f22; color:#fff; font:600 14px system-ui; cursor:pointer;">
+  <!-- Кнопка открытия панели -->
+  <button id="uiToggle" aria-pressed="false" style="position:fixed; right:16px; top:16px; z-index:11; padding:10px 12px; border:0; border-radius:12px; background:#1f1f22; color:#fff; font:600 14px system-ui; cursor:pointer;">
     ⚙️ Настройки
   </button>
 
-  <!-- Панель Tone Mapping (по умолчанию скрыта) -->
-  <div id="tonePanel" class="" style="
-    position:fixed; right:16px; top:64px; z-index:10;
-    gap:8px; align-items:center;
-    background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
-    padding:8px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
-    <label for="tone" style="white-space:nowrap; margin-right:6px;">Tone Mapping:</label>
-    <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
-      <option value="neutral">Neutral</option>
-      <option value="aces">ACES</option>
-      <option value="agx" selected>AgX</option>
-      <option value="cineon">Cineon</option>
-      <option value="reinhard">Reinhard</option>
-      <option value="linear">Linear</option>
-      <option value="none">None</option>
-    </select>
+  <!-- Панель (tone mapping + HDR + экспозиция) -->
+  <div id="tonePanel" style="position:fixed; right:16px; top:64px; z-index:10; gap:12px; align-items:center; background:rgba(0,0,0,.6); backdrop-filter: blur(6px); padding:10px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
+    <div class="row">
+      <span class="label">Tone Mapping:</span>
+      <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
+        <option value="neutral">Neutral</option>
+        <option value="aces">ACES</option>
+        <option value="agx" selected>AgX</option>
+        <option value="cineon">Cineon</option>
+        <option value="reinhard">Reinhard</option>
+        <option value="linear">Linear</option>
+        <option value="none">None</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="hdr" class="label">HDR-окружение:</label>
+      <input id="hdr" type="checkbox" />
+    </div>
+
+    <div class="row">
+      <label for="expo" class="label">Экспозиция:</label>
+      <input id="expo" type="range" min="0.3" max="2.0" step="0.01" value="1.0" style="width:160px;">
+      <span id="expoVal">1.00</span>
+    </div>
   </div>
 
   <script>
   (() => {
     const mv = document.querySelector('model-viewer');
     const panel = document.getElementById('tonePanel');
-    const toggleBtn = document.getElementById('uiToggle');
+    const btn = document.getElementById('uiToggle');
     const toneSel = document.getElementById('tone');
+    const hdr = document.getElementById('hdr');
+    const expo = document.getElementById('expo');
+    const expoVal = document.getElementById('expoVal');
 
-    // Применить выбранный tone mapping мгновенно к превью
+    // CORS-дружелюбный HDR с modelviewer.dev (для демонстрации отличий)
+    const HDR_URL = 'https://modelviewer.dev/shared-assets/environments/spruit_sunrise_1k.hdr';
+
     function applyTone() {
       mv.toneMapping = toneSel.value;
       mv.requestUpdate('tone-mapping');
     }
-
-    // Инициализация: дефолт AgX + синхронизация селекта
-    function init() {
-      try { mv.toneMapping = 'agx'; } catch {}
-      toneSel.value = 'agx';
-      mv.requestUpdate('tone-mapping');
+    function applyExposure() {
+      mv.exposure = parseFloat(expo.value);
+      expoVal.textContent = mv.exposure.toFixed(2);
+      mv.requestUpdate('exposure');
+    }
+    function applyHDR() {
+      const on = hdr.checked;
+      mv.environmentImage = on ? HDR_URL : 'neutral';
+      // при желании показывать фон:
+      // mv.skyboxImage = on ? HDR_URL : null;
+      mv.requestUpdate('environment');
     }
 
-    // Переключатель панели
-    function togglePanel() {
-      const isOpen = panel.classList.toggle('open');
-      toggleBtn.setAttribute('aria-pressed', String(isOpen));
-    }
-
-    // Закрытие по Esc
-    function onKey(e){
+    // UI
+    btn.addEventListener('click', () => {
+      const open = panel.classList.toggle('open');
+      btn.setAttribute('aria-pressed', String(open));
+    });
+    document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && panel.classList.contains('open')) {
         panel.classList.remove('open');
-        toggleBtn.setAttribute('aria-pressed', 'false');
+        btn.setAttribute('aria-pressed', 'false');
       }
-    }
+    });
 
-    toggleBtn.addEventListener('click', togglePanel);
-    document.addEventListener('keydown', onKey);
     toneSel.addEventListener('input', applyTone);
+    expo.addEventListener('input', applyExposure);
+    hdr.addEventListener('change', applyHDR);
+
+    // Инициализация: AgX + задать текущую экспозицию в слайдер
+    function init() {
+      mv.toneMapping = 'agx';
+      toneSel.value = 'agx';
+      expo.value = mv.exposure ?? 1.0;
+      expoVal.textContent = (mv.exposure ?? 1.0).toFixed(2);
+      // HDR выключен по умолчанию — включай, чтобы явно увидеть разницу
+      applyTone();
+    }
 
     if (mv.model) init();
     else mv.addEventListener('load', init, { once:true });
