@@ -1,67 +1,67 @@
 <!doctype html>
 <html lang="ru">
-
 <head>
   <meta charset="utf-8" />
   <title>AR модель — model-viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- model-viewer -->
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
   <style>
-    html,
-    body {
-      height: 100%;
-      margin: 0;
-      background: #111;
-    }
+    html, body { height: 100%; margin: 0; background:#111; }
+    model-viewer { width: 100%; height: 100%; background: #111; }
 
-    model-viewer {
-      width: 100%;
-      height: 100%;
-      background: #111;
-    }
+    /* Панель скрыта по умолчанию */
+    #tonePanel { display: none; }
+    #tonePanel.open { display: flex; }
 
-    #tonePanel {
-      display: none;
-    }
-
-    #tonePanel.open {
-      display: flex;
-    }
-
-    .row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .label {
-      white-space: nowrap;
-      margin-right: 6px;
-    }
+    .row { display:flex; gap:8px; align-items:center; }
+    .label { white-space:nowrap; margin-right:6px; }
   </style>
 </head>
-
 <body>
 
-  <model-viewer src="/Models/Step.glb" alt="БРАЕР Step" ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto"
-    camera-controls auto-rotate shadow-intensity="0" exposure="0.65" tone-mapping="agx" crossorigin="anonymous"
+  <!-- Просмотрщик -->
+  <model-viewer
+    src="/Models/Step.glb"
+    alt="БРАЕР Step"
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    ar-scale="auto"
+    camera-controls
+    auto-rotate
+    shadow-intensity="0"
+    exposure="0.65"
+    tone-mapping="agx"         <!-- дефолт AgX -->
+    crossorigin="anonymous"    <!-- важно для внешних HDR -->
     disable-zoom>
-    <button slot="ar-button"
-      style="position:absolute; left:50%; bottom:16px; transform:translateX(-50%); padding:12px 18px; border:0; border-radius:12px; font:600 16px system-ui; background:#fff; color:#111; cursor:pointer;">Открыть
-      в AR</button>
-    <div slot="poster" style="display:flex; align-items:center; justify-content:center; height:100%; color:#aaa;">
-      Загрузка модели…</div>
+    <button slot="ar-button" style="
+      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+      padding:12px 18px; border:0; border-radius:12px; font:600 16px system-ui;
+      background:#fff; color:#111; cursor:pointer;">
+      Открыть в AR
+    </button>
+    <div slot="poster" style="
+      display:flex; align-items:center; justify-content:center; height:100%; color:#aaa;">
+      Загрузка модели…
+    </div>
   </model-viewer>
 
-  <!-- Кнопка открытия панели -->
-  <button id="uiToggle" aria-pressed="false"
-    style="position:fixed; right:16px; top:16px; z-index:11; padding:10px 12px; border:0; border-radius:12px; background:#1f1f22; color:#fff; font:600 14px system-ui; cursor:pointer;">
+  <!-- Кнопка вызова панели -->
+  <button id="uiToggle" aria-pressed="false" style="
+    position:fixed; right:16px; top:16px; z-index:11;
+    padding:10px 12px; border:0; border-radius:12px;
+    background:#1f1f22; color:#fff; font:600 14px system-ui; cursor:pointer;">
     ⚙️ Настройки
   </button>
 
-  <!-- Панель (tone mapping + HDR + экспозиция) -->
-  <div id="tonePanel"
-    style="position:fixed; right:16px; top:64px; z-index:10; gap:12px; align-items:center; background:rgba(0,0,0,.6); backdrop-filter: blur(6px); padding:10px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
+  <!-- Панель (Tone Mapping + HDR + экспозиция) -->
+  <div id="tonePanel" style="
+    position:fixed; right:16px; top:64px; z-index:10;
+    gap:12px; align-items:center;
+    background:rgba(0,0,0,.6); backdrop-filter: blur(6px);
+    padding:10px 12px; border-radius:12px; color:#fff; font:500 14px system-ui;">
     <div class="row">
       <span class="label">Tone Mapping:</span>
       <select id="tone" style="background:#111; color:#fff; border:1px solid #333; border-radius:8px; padding:6px 8px;">
@@ -88,71 +88,113 @@
   </div>
 
   <script>
-    (() => {
-      const mv = document.querySelector('model-viewer');
-      const hdr = document.getElementById('hdr');
-      const expo = document.getElementById('expo');
-      const expoVal = document.getElementById('expoVal');
-      const toneSel = document.getElementById('tone');
+  (() => {
+    const mv = document.querySelector('model-viewer');
 
-      const HDR_URL = 'https://modelviewer.dev/shared-assets/environments/spruit_sunrise_1k.hdr';
+    const panel   = document.getElementById('tonePanel');
+    const btn     = document.getElementById('uiToggle');
+    const toneSel = document.getElementById('tone');
+    const hdr     = document.getElementById('hdr');
+    const expo    = document.getElementById('expo');
+    const expoVal = document.getElementById('expoVal');
 
-      // Запомним экспозицию пользователя, чтобы вернуть при выключении HDR
-      const userState = { exposureBeforeHDR: null };
+    // CORS-дружелюбный HDR с demo-хоста
+    const HDR_URL = 'https://modelviewer.dev/shared-assets/environments/spruit_sunrise_1k.hdr';
 
-      function applyTone() {
-        mv.toneMapping = toneSel.value;
-        mv.requestUpdate('tone-mapping');
-      }
+    // сохраним пользовательскую экспозицию, чтобы возвращать её при выключении HDR
+    const userState = { exposureBeforeHDR: null, envIntensityBeforeHDR: null };
 
-      function applyExposure() {
-        mv.exposure = parseFloat(expo.value);
-        expoVal.textContent = mv.exposure.toFixed(2);
-        mv.requestUpdate('exposure');
-      }
+    function applyTone() {
+      mv.toneMapping = toneSel.value;
+      mv.requestUpdate('tone-mapping');
+    }
 
-      function applyHDR() {
-        const on = hdr.checked;
+    function applyExposure() {
+      mv.exposure = parseFloat(expo.value);
+      expoVal.textContent = mv.exposure.toFixed(2);
+      mv.requestUpdate('exposure');
+    }
 
-        if (on) {
-          // сохранить текущую экспозицию пользователя
-          if (userState.exposureBeforeHDR === null) {
-            userState.exposureBeforeHDR = mv.exposure ?? 1;
-          }
-          // подключаем HDR и усиливаем его вклад
-          mv.environmentImage = HDR_URL;
-          mv.environmentIntensity = 1.4;                 // усиливаем IBL
-          mv.exposure = Math.max(mv.exposure ?? 1, 1.3); // чуть ярче, чтобы «ожило»
-          expo.value = mv.exposure;
-          expoVal.textContent = mv.exposure.toFixed(2);
+    function applyHDR() {
+      const on = hdr.checked;
 
-          // опционально: показать фон для быстрой проверки, что HDR действительно загрузился
-          // mv.skyboxImage = HDR_URL;
-        } else {
-          mv.environmentImage = 'neutral';
-          mv.environmentIntensity = 1.0;
-          // вернуть экспозицию пользователя
-          if (userState.exposureBeforeHDR !== null) {
-            mv.exposure = userState.exposureBeforeHDR;
-            expo.value = mv.exposure;
-            expoVal.textContent = mv.exposure.toFixed(2);
-            userState.exposureBeforeHDR = null;
-          }
-          // mv.skyboxImage = null;
+      if (on) {
+        // запомним пользовательские значения 1 раз
+        if (userState.exposureBeforeHDR === null) {
+          userState.exposureBeforeHDR = mv.exposure ?? 1.0;
+        }
+        if (userState.envIntensityBeforeHDR === null) {
+          userState.envIntensityBeforeHDR = mv.environmentIntensity ?? 1.0;
         }
 
-        mv.requestUpdate('environment');
-        mv.requestUpdate('exposure');
+        // подключаем HDR и усиливаем его вклад
+        mv.environmentImage = HDR_URL;
+        mv.environmentIntensity = 1.4;                         // усилить IBL
+        mv.exposure = Math.max(mv.exposure ?? 1.0, 1.3);       // сделать чуть ярче
+        expo.value = mv.exposure;
+        expoVal.textContent = mv.exposure.toFixed(2);
+
+        // опционально показывать фон:
+        // mv.skyboxImage = HDR_URL;
+      } else {
+        // вернуть нейтраль и исходные значения
+        mv.environmentImage = 'neutral';
+        mv.environmentIntensity = userState.envIntensityBeforeHDR ?? 1.0;
+
+        if (userState.exposureBeforeHDR !== null) {
+          mv.exposure = userState.exposureBeforeHDR;
+          expo.value = mv.exposure;
+          expoVal.textContent = mv.exposure.toFixed(2);
+        }
+        userState.exposureBeforeHDR = null;
+        userState.envIntensityBeforeHDR = null;
+
+        // mv.skyboxImage = null;
       }
 
-      // …остальной код инициализации оставь как есть…
-      // не забудь снова привязать обработчики:
-      // hdr.addEventListener('change', applyHDR);
-      // toneSel.addEventListener('input', applyTone);
-      // expo.addEventListener('input', applyExposure);
-    })();
+      mv.requestUpdate('environment');
+      mv.requestUpdate('exposure');
+    }
+
+    // UI: показать/скрыть панель и закрытие по Esc
+    btn.addEventListener('click', () => {
+      const open = panel.classList.toggle('open');
+      btn.setAttribute('aria-pressed', String(open));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.setAttribute('aria-pressed', 'false');
+      }
+    });
+
+    toneSel.addEventListener('input', applyTone);
+    expo.addEventListener('input', applyExposure);
+    hdr.addEventListener('change', applyHDR);
+
+    // стартовая инициализация
+    function init() {
+      // дефолт — AgX
+      mv.toneMapping = 'agx';
+      toneSel.value = 'agx';
+
+      // синхронизируем слайдер экспозиции с текущим значением
+      const startExpo = mv.exposure ?? 1.0;
+      expo.value = startExpo;
+      expoVal.textContent = Number(startExpo).toFixed(2);
+
+      // нейтральное окружение до включения HDR
+      mv.environmentImage = 'neutral';
+      mv.environmentIntensity = 1.0;
+
+      mv.requestUpdate('tone-mapping');
+      mv.requestUpdate('environment');
+    }
+
+    if (mv.model) init();
+    else mv.addEventListener('load', init, { once:true });
+  })();
   </script>
 
 </body>
-
 </html>
