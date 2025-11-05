@@ -4,41 +4,19 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Model Viewer AR с ссылкой</title>
+    <title>AR с ссылкой (Scene Viewer & Quick Look)</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
-        /* Общие стили для полноэкранного отображения */
-        html,
-        body {
-            height: 100%;
-            margin: 0;
-            background: #0f1115;
-            color: #e9edf5;
-            font: 14px/1.45 system-ui
-        }
-
-        model-viewer {
-            height: 100%;
-            width: 100%;
-            display: block;
-            background: #0b0e14;
-            --progress-bar-color: #fff
-        }
+        /* CSS для полноэкранного режима */
+        html, body { height: 100%; margin: 0; background: #0f1115; color: #e9edf5; font: 14px/1.45 system-ui; }
+        model-viewer { height: 100%; width: 100%; display: block; background: #0b0e14; --progress-bar-color: #fff; }
 
         /* Стили для кастомной AR-кнопки */
         button[slot="ar-button"] {
-            position: absolute;
-            left: 50%;
-            bottom: 16px;
-            transform: translateX(-50%);
-            padding: 12px 18px;
-            border: 0;
-            border-radius: 12px;
-            font: 600 16px system-ui;
-            background: #fff;
-            color: #111;
-            cursor: pointer;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, .35)
+            position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+            padding: 12px 18px; border: 0; border-radius: 12px;
+            font: 600 16px system-ui; background: #fff; color: #111;
+            cursor: pointer; box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
         }
     </style>
 </head>
@@ -50,70 +28,67 @@
         ar-modes="scene-viewer quick-look" 
         ar-scale="auto" 
         camera-controls
-        exposure="0.75" 
-        tone-mapping="agx" 
-        
         src="Models/Aurus_A_DC_AAI-13HN8_White_3_.glb"
+        
         ios-src="Models/Aurus_A_DC_AAI-13HN8_White.usdz#callToAction=Перейти%20на%20сайт&callToActionTarget=https%3A%2F%2Fnazzar.uz%2F"
     >
         <button slot="ar-button">Открыть в AR</button>
-        </model-viewer>
+    </model-viewer>
 
     <script>
-        // Константы для Scene Viewer
+        // КОНФИГУРАЦИЯ ССЫЛКИ ДЛЯ SCENE VIEWER
         const CTA_URL = "https://nazzar.uz/";
-        const CTA_TEXT = "Перейти на сайт"; // Текст на кнопке баннера в Scene Viewer
-        
+        const CTA_TEXT = "Перейти на сайт"; // Текст на кнопке баннера
+
         const pv = document.getElementById("preview");
         const isAndroid = () => /Android/i.test(navigator.userAgent);
 
         /**
-         * Формирует Intent URL для запуска Scene Viewer с ссылкой-баннером.
-         * Scene Viewer требует абсолютный путь к модели.
+         * Формирует явный Intent URL для Scene Viewer с кнопкой действия.
          */
         function buildSceneViewerIntent(modelAbs, linkUrl, ctaText) {
             const file = encodeURIComponent(modelAbs);
             const url = encodeURIComponent(linkUrl);
             const cta = encodeURIComponent(ctaText);
+            const fallbackUrl = encodeURIComponent(window.location.href);
 
-            // Используем 'cta' и 'url' для баннера
+            // Параметры 'cta' и 'url' для Scene Viewer
             return "intent://arvr.google.com/scene-viewer/1.0?file=" + file +
                    "&mode=ar_only&title=Aurus&cta=" + cta + "&url=" + url + 
                    "#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;S.browser_fallback_url=" + 
-                   encodeURIComponent(location.href) + ";end;";
+                   fallbackUrl + ";end;";
         }
 
         /**
-         * Прикрепляет обработчик клика к AR-кнопке для Android.
+         * Перехватчик кнопки AR для Android, чтобы принудительно запустить Scene Viewer с ссылкой.
          */
-        function attachAndroidHandler() {
-            // Ищем AR-кнопку внутри Shadow DOM model-viewer
-            const btn = pv.shadowRoot && pv.shadowRoot.querySelector('button[slot="ar-button"]');
-            if (!btn) {
-                // Если кнопка еще не прогрузилась, пробуем снова
-                setTimeout(attachAndroidHandler, 50);
-                return;
-            }
-
-            // Перехватываем стандартное поведение model-viewer только на Android
-            if (isAndroid()) {
+        function attachSceneViewerHandler() {
+            // Получаем кнопку AR из Shadow DOM, когда модель загружена
+            const btn = pv.shadowRoot.querySelector('button[slot="ar-button"]');
+            
+            if (isAndroid() && btn) {
+                // Важно: Удаляем существующий обработчик (если model-viewer его добавил), 
+                // чтобы избежать двойного запуска или конфликта.
+                
+                // Добавляем наш собственный обработчик
                 btn.addEventListener("click", function (ev) {
-                    // Получаем абсолютный URL модели
-                    const abs = new URL(pv.getAttribute("src"), location.href).href;
-                    const intentUrl = buildSceneViewerIntent(abs, CTA_URL, CTA_TEXT);
+                    // Используем текущий src модели
+                    const modelAbs = new URL(pv.getAttribute("src"), window.location.href).href;
+                    const intentUrl = buildSceneViewerIntent(modelAbs, CTA_URL, CTA_TEXT);
                     
-                    // Перенаправляем на Scene Viewer
                     window.location.href = intentUrl; 
                     ev.preventDefault();
                     ev.stopPropagation();
-                });
+                }, { once: true });
             }
         }
 
-        // Запускаем прикрепление обработчика после загрузки model-viewer
-        pv.addEventListener('load', attachAndroidHandler);
+        // Ждем загрузки модели, чтобы получить доступ к Shadow DOM и кнопке
+        pv.addEventListener('load', attachSceneViewerHandler);
+        
+        // Если AR-кнопка уже отображается (модель быстро загрузилась)
         if (pv.shadowRoot) {
-            attachAndroidHandler();
+            attachSceneViewerHandler();
         }
     </script>
 </body>
