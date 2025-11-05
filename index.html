@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Тест Google Scene Viewer</title>
+    <title>Тест Google Scene Viewer с кнопкой "Visit"</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { font-family: sans-serif; text-align: center; padding-top: 50px; }
@@ -23,26 +23,29 @@
     </style>
 </head>
 <body>
-    <h1>Просмотр 3D-модели в AR</h1>
-    <p>Нажмите кнопку ниже, чтобы открыть модель Астронавта в режиме дополненной реальности с помощью Scene Viewer.</p>
-    <p><em>(Для работы требуется совместимое устройство Android и установленные Сервисы Google Play для AR.)</em></p>
+    <h1>Просмотр 3D-модели в AR с опцией "Visit"</h1>
+    <p>Нажмите кнопку ниже, чтобы открыть модель Астронавта в режиме дополненной реальности.</p>
+    <p>В Scene Viewer будет отображаться кнопка **"Visit"**, ведущая на сайт разработчиков AR.</p>
 
     <br>
 
     <a
-      href="intent://arvr.google.com/scene-viewer/1.0?file=https://modelviewer.dev/shared-assets/models/Astronaut.glb&mode=ar_only&title=Астронавт#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar/develop/scene-viewer;end;"
+      href="intent://arvr.google.com/scene-viewer/1.0?file=https://modelviewer.dev/shared-assets/models/Astronaut.glb&mode=ar_only&title=Астронавт#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar/develop/scene-viewer?hl=ru;end;"
       rel="ar"
       class="ar-button"
     >
-      Посмотреть в AR
+      Посмотреть в AR (с кнопкой "Visit")
     </a>
     <br><br>
 
     <p style="margin-top: 50px; font-size: 0.9em; color: #666;">
-        **Как это работает:** <br>
-        Этот код использует URI-схему **`intent://`** и параметры, которые указывают мобильному браузеру открыть приложение Google Scene Viewer.
-        <br>
-        Для своей модели замените значение параметра **`file=`** на прямую ссылку (URL) на ваш 3D-файл (в формате **gLTF** или **gLB**).
+        **Ключевое изменение:** <br>
+        Параметр **`S.browser_fallback_url=`** теперь используется для двух целей:
+        <ol style="text-align: left; max-width: 600px; margin: 0 auto;">
+            <li>**Резервный URL:** Если Scene Viewer не может быть запущен (например, на несовместимом устройстве), браузер перейдет по этой ссылке.</li>
+            <li>**Кнопка "Visit":** В самом Scene Viewer эта ссылка используется для кнопки **"Visit"** (Посетить) или аналогичной кнопки-действия.</li>
+        </ol>
+        В данном примере она ведет на ту же страницу документации Google, которую Вы указали. Замените эту ссылку на нужный Вам целевой веб-сайт.
     </p>
 
 </body>
