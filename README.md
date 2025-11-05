@@ -1,1 +1,0 @@
-# WebAR Project\n\n- Откройте viewer.html на HTTPS-хостинге.\n- Модель лежит в папке Models, путь: Models/generic_passenger_car_pack.glb\n- На Android: откроется Scene Viewer с кнопкой-ссылкой на сайт.\n- В WebXR: снизу HTML-плашка «Перейти на сайт».\n\nСобрано: 2025-11-05T10-13-27-351Z
