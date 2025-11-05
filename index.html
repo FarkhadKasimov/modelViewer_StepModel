@@ -2,12 +2,10 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>WebXR AR с Фото и Видео</title>
+    <title>WebXR AR с Фото и Видео (Модули)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://unpkg.com/three@0.160.0/examples/js/webxr/ARButton.js"></script>
     <style>
+        /* ... (Ваши стили остаются прежними) ... */
         body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
         #ar-button {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -17,7 +15,7 @@
         }
         #ui {
             position: absolute; top: 10px; right: 10px; z-index: 100;
-            display: none; /* Скрываем по умолчанию, показываем в AR-сессии */
+            display: none; 
         }
         .capture-btn {
             background-color: rgba(255, 255, 255, 0.7); border: 2px solid #333;
@@ -36,9 +34,14 @@
         <button class="capture-btn" id="record-btn">🔴</button>
     </div>
 
-    <script>
+    <script type="module">
+        // Импортируем модули, используя путь 'jsm'
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
+        import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+        
+        // ... (остальной код остается почти тем же, но без let controller, так как не используется) ...
         let camera, scene, renderer;
-        let controller;
         let recording = false;
         let mediaRecorder;
         const recordedChunks = [];
@@ -48,43 +51,40 @@
         animate();
 
         function init() {
-            // 1. НАСТРОЙКА СЦЕНЫ
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-            // 2. РЕНДЕРЕР (WebGL)
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true; // Включаем WebXR
+            renderer.xr.enabled = true;
             container.appendChild(renderer.domElement);
 
-            // 3. СВЕТ
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
             scene.add(light);
 
-            // 4. КНОПКА AR
-            const arButton = document.getElementById('ar-button');
+            // КНОПКА AR - теперь ARButton импортирован как модуль
+            const arButtonContainer = document.getElementById('ar-button');
             document.body.appendChild(ARButton.createButton(renderer, {
-                requiredFeatures: ['hit-test'], // Требуем обнаружение поверхностей
-                domElement: arButton,
+                requiredFeatures: ['hit-test'], 
+                domElement: arButtonContainer, // Используем контейнер
                 onSessionStart: () => { document.getElementById('ui').style.display = 'block'; },
                 onSessionEnd: () => { document.getElementById('ui').style.display = 'none'; }
             }));
 
-            // 5. ЗАГРУЗКА МОДЕЛИ
-            const loader = new THREE.GLTFLoader();
+            // ЗАГРУЗКА МОДЕЛИ
+            const loader = new GLTFLoader(); // Теперь GLTFLoader импортирован
             loader.load(
                 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
                 function (gltf) {
                     const model = gltf.scene;
                     model.scale.set(0.2, 0.2, 0.2);
-                    model.position.set(0, 0, -1); // Начальное положение
+                    model.position.set(0, 0, -1); 
                     scene.add(model);
                 }
             );
 
-            // 6. ОБРАБОТЧИКИ КНОПОК
+            // ОБРАБОТЧИКИ КНОПОК
             document.getElementById('photo-btn').addEventListener('click', capturePhoto);
             document.getElementById('record-btn').addEventListener('click', toggleRecording);
         }
@@ -97,10 +97,9 @@
             renderer.render(scene, camera);
         }
 
-        // --- ФУНКЦИИ ЗАХВАТА ---
+        // --- ФУНКЦИИ ЗАХВАТА --- (Остаются без изменений)
 
         function capturePhoto() {
-            // Создаем временную ссылку для скачивания Canvas
             const dataURL = renderer.domElement.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = dataURL;
@@ -115,8 +114,7 @@
             const recordBtn = document.getElementById('record-btn');
 
             if (!recording) {
-                // НАЧАТЬ ЗАПИСЬ
-                const stream = renderer.domElement.captureStream(30); // 30 кадров в секунду
+                const stream = renderer.domElement.captureStream(30);
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
 
                 mediaRecorder.ondataavailable = function(e) {
@@ -127,25 +125,23 @@
 
                 mediaRecorder.onstop = function() {
                     downloadVideo();
-                    recordedChunks.length = 0; // Очищаем
+                    recordedChunks.length = 0;
                 };
 
                 mediaRecorder.start();
                 recording = true;
                 recordBtn.classList.add('recording');
-                recordBtn.innerText = '◼'; // Кнопка "Стоп"
+                recordBtn.innerText = '◼';
 
             } else {
-                // ОСТАНОВИТЬ ЗАПИСЬ
                 mediaRecorder.stop();
                 recording = false;
                 recordBtn.classList.remove('recording');
-                recordBtn.innerText = '🔴'; // Кнопка "Запись"
+                recordBtn.innerText = '🔴';
             }
         }
 
         function downloadVideo() {
-            // Создаем файл из записанных чанков и ссылку для скачивания
             const blob = new Blob(recordedChunks, { type: 'video/webm' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
