@@ -2,51 +2,161 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Тест Google Scene Viewer с кнопкой "Visit"</title>
+    <title>WebXR AR с Фото и Видео</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/examples/js/webxr/ARButton.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
-        .ar-button {
-            display: inline-block;
-            padding: 15px 30px;
-            background-color: #4285F4; /* Синий цвет Google */
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 1.2em;
-            font-weight: bold;
-            transition: background-color 0.3s;
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
+        #ar-button {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 15px 30px; background-color: #4285F4; color: white;
+            border: none; border-radius: 8px; font-size: 1.2em; cursor: pointer;
+            z-index: 100;
         }
-        .ar-button:hover {
-            background-color: #357ae8;
+        #ui {
+            position: absolute; top: 10px; right: 10px; z-index: 100;
+            display: none; /* Скрываем по умолчанию, показываем в AR-сессии */
         }
+        .capture-btn {
+            background-color: rgba(255, 255, 255, 0.7); border: 2px solid #333;
+            color: #333; padding: 10px; margin-left: 5px; border-radius: 50%;
+            width: 50px; height: 50px; font-weight: bold; cursor: pointer;
+        }
+        #record-btn { background-color: red; color: white; border: none; }
+        #record-btn.recording { border: 4px solid #fff; background-color: darkred; }
     </style>
 </head>
 <body>
-    <h1>Просмотр 3D-модели в AR с опцией "Visit"</h1>
-    <p>Нажмите кнопку ниже, чтобы открыть модель Астронавта в режиме дополненной реальности.</p>
-    <p>В Scene Viewer будет отображаться кнопка **"Visit"**, ведущая на сайт разработчиков AR.</p>
+    <div id="ar-button"></div>
 
-    <br>
+    <div id="ui">
+        <button class="capture-btn" id="photo-btn">📷</button>
+        <button class="capture-btn" id="record-btn">🔴</button>
+    </div>
 
-    <a
-      href="intent://arvr.google.com/scene-viewer/1.0?file=https://modelviewer.dev/shared-assets/models/Astronaut.glb&mode=ar_only&title=Астронавт#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=https://developers.google.com/ar/develop/scene-viewer?hl=ru;end;"
-      rel="ar"
-      class="ar-button"
-    >
-      Посмотреть в AR (с кнопкой "Visit")
-    </a>
-    <br><br>
+    <script>
+        let camera, scene, renderer;
+        let controller;
+        let recording = false;
+        let mediaRecorder;
+        const recordedChunks = [];
+        const container = document.body;
 
-    <p style="margin-top: 50px; font-size: 0.9em; color: #666;">
-        **Ключевое изменение:** <br>
-        Параметр **`S.browser_fallback_url=`** теперь используется для двух целей:
-        <ol style="text-align: left; max-width: 600px; margin: 0 auto;">
-            <li>**Резервный URL:** Если Scene Viewer не может быть запущен (например, на несовместимом устройстве), браузер перейдет по этой ссылке.</li>
-            <li>**Кнопка "Visit":** В самом Scene Viewer эта ссылка используется для кнопки **"Visit"** (Посетить) или аналогичной кнопки-действия.</li>
-        </ol>
-        В данном примере она ведет на ту же страницу документации Google, которую Вы указали. Замените эту ссылку на нужный Вам целевой веб-сайт.
-    </p>
+        init();
+        animate();
 
+        function init() {
+            // 1. НАСТРОЙКА СЦЕНЫ
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            // 2. РЕНДЕРЕР (WebGL)
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true; // Включаем WebXR
+            container.appendChild(renderer.domElement);
+
+            // 3. СВЕТ
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
+            scene.add(light);
+
+            // 4. КНОПКА AR
+            const arButton = document.getElementById('ar-button');
+            document.body.appendChild(ARButton.createButton(renderer, {
+                requiredFeatures: ['hit-test'], // Требуем обнаружение поверхностей
+                domElement: arButton,
+                onSessionStart: () => { document.getElementById('ui').style.display = 'block'; },
+                onSessionEnd: () => { document.getElementById('ui').style.display = 'none'; }
+            }));
+
+            // 5. ЗАГРУЗКА МОДЕЛИ
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(0.2, 0.2, 0.2);
+                    model.position.set(0, 0, -1); // Начальное положение
+                    scene.add(model);
+                }
+            );
+
+            // 6. ОБРАБОТЧИКИ КНОПОК
+            document.getElementById('photo-btn').addEventListener('click', capturePhoto);
+            document.getElementById('record-btn').addEventListener('click', toggleRecording);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        function render(timestamp, frame) {
+            renderer.render(scene, camera);
+        }
+
+        // --- ФУНКЦИИ ЗАХВАТА ---
+
+        function capturePhoto() {
+            // Создаем временную ссылку для скачивания Canvas
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'webxr_photo_' + Date.now() + '.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert('Фото сохранено!');
+        }
+
+        function toggleRecording() {
+            const recordBtn = document.getElementById('record-btn');
+
+            if (!recording) {
+                // НАЧАТЬ ЗАПИСЬ
+                const stream = renderer.domElement.captureStream(30); // 30 кадров в секунду
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = function() {
+                    downloadVideo();
+                    recordedChunks.length = 0; // Очищаем
+                };
+
+                mediaRecorder.start();
+                recording = true;
+                recordBtn.classList.add('recording');
+                recordBtn.innerText = '◼'; // Кнопка "Стоп"
+
+            } else {
+                // ОСТАНОВИТЬ ЗАПИСЬ
+                mediaRecorder.stop();
+                recording = false;
+                recordBtn.classList.remove('recording');
+                recordBtn.innerText = '🔴'; // Кнопка "Запись"
+            }
+        }
+
+        function downloadVideo() {
+            // Создаем файл из записанных чанков и ссылку для скачивания
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            document.body.appendChild(a);
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'webxr_video_' + Date.now() + '.webm';
+            a.click();
+            window.URL.revokeObjectURL(url);
+            alert('Видео сохранено!');
+        }
+    </script>
 </body>
 </html>
