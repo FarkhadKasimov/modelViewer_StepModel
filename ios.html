@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AR Quick Look с Кнопкой</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        .ar-link {
+            display: inline-block;
+            padding: 15px 30px;
+            background-color: #007aff; /* Синий цвет Apple */
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Посмотрите 3D-Модель в AR</h1>
+    <p>Нажмите на кнопку ниже, чтобы увидеть модель в дополненной реальности. (Работает только на iOS)</p>
+
+    <a id="ar-model-link" 
+       rel="ar" 
+       href="https://developer.apple.com/augmented-reality/quick-look/models/biplane/toy_biplane.usdz#callToAction=Add%20to%20Cart&checkoutTitle=Awesome%20Cube&checkoutSubtitle=AR%20Model&price=19.99%20USD" 
+       class="ar-link">
+        Посмотреть в AR
+    </a>
+
+    <p style="margin-top: 40px;">После нажатия "Добавить в корзину" в AR, вы увидите сообщение в консоли (и перейдете на новую страницу).</p>
+
+    <script>
+        // Получаем ссылку на наш <a> элемент
+        const arLink = document.getElementById('ar-model-link');
+
+        // Добавляем слушатель события 'message' для обнаружения нажатия кнопки в AR Quick Look
+        arLink.addEventListener('message', function(event) {
+            // Проверяем, что сообщение пришло от AR Quick Look и указывает на нажатие кнопки 
+            if (event.data === '_apple_ar_quicklook_button_tapped') {
+                console.log('✅ Кнопка "Добавить в корзину" в AR Quick Look нажата!');
+                
+                // --- СЮДА ВСТАВЬТЕ ВАШУ ЛОГИКУ ---
+                alert('Кнопка в AR нажата! Имитируем добавление в корзину...');
+                
+                // Пример: перенаправление пользователя на страницу корзины или обработки заказа
+                window.location.href = 'https://farkhadkasimov.github.io/modelViewer_StepModel/index.html'; 
+                // --- КОНЕЦ ЛОГИКИ ---
+            }
+        });
+    </script>
+
+</body>
+</html>
