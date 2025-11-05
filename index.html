@@ -46,18 +46,15 @@
         /**
          * Формирует явный Intent URL для Scene Viewer с кнопкой действия.
          */
-        function buildSceneViewerIntent(modelAbs, linkUrl, ctaText) {
-            const file = encodeURIComponent(modelAbs);
-            const url = encodeURIComponent(linkUrl);
-            const cta = encodeURIComponent(ctaText);
-            const fallbackUrl = encodeURIComponent(window.location.href);
-
-            // Параметры 'cta' и 'url' для Scene Viewer
-            return "intent://arvr.google.com/scene-viewer/1.0?file=" + file +
-                   "&mode=ar_only&title=Aurus&cta=" + cta + "&url=" + url + 
-                   "#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;S.browser_fallback_url=" + 
-                   fallbackUrl + ";end;";
-        }
+        function buildSceneViewerIntent(modelAbs, linkUrl) {
+  const file = encodeURIComponent(modelAbs);
+  const link = encodeURIComponent(linkUrl);
+  const fallbackUrl = encodeURIComponent(window.location.href);
+  return "intent://arvr.google.com/scene-viewer/1.0?file=" + file +
+         "&mode=ar_only&title=Aurus&link=" + link +
+         "#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;S.browser_fallback_url=" +
+         fallbackUrl + ";end;";
+}
 
         /**
          * Перехватчик кнопки AR для Android, чтобы принудительно запустить Scene Viewer с ссылкой.
@@ -74,7 +71,7 @@
                 btn.addEventListener("click", function (ev) {
                     // Используем текущий src модели
                     const modelAbs = new URL(pv.getAttribute("src"), window.location.href).href;
-                    const intentUrl = buildSceneViewerIntent(modelAbs, CTA_URL, CTA_TEXT);
+                    const intentUrl = buildSceneViewerIntent(\1, CTA_URL);
                     
                     window.location.href = intentUrl; 
                     ev.preventDefault();
