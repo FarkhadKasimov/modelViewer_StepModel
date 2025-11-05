@@ -3,138 +3,256 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>viewer</title>
+  <title>viewer + AR shutter</title>
+
+  <!-- model-viewer -->
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
   <style>
-    html, body { height:100%; margin:0; background:#0f1115; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #0f1115;
+      color-scheme: light dark;
+    }
     model-viewer#preview {
-      position: relative; display:block; width:100%; height:100dvh;
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 100dvh;
       padding-bottom: env(safe-area-inset-bottom, 0);
       --poster-color: transparent;
     }
 
-    /* Кнопка AR запуска (как раньше) */
+    /* Кнопка запуска AR (стандартный слот) */
     button[slot="ar-button"] {
-      position:absolute; left:50%; transform:translateX(-50%);
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
       bottom: calc(16px + env(safe-area-inset-bottom, 0));
-      z-index:20; padding:12px 16px; border-radius:12px;
-      font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:#fff; color:#0f1115; border:1px solid #d0d4da; box-shadow:0 6px 22px rgba(0,0,0,.35);
+      z-index: 20;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font: 600 14px/1 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #fff;
+      color: #0f1115;
+      border: 1px solid #d0d4da;
+      box-shadow: 0 6px 22px rgba(0,0,0,.35);
+      cursor: pointer;
     }
 
-    /* Плашка-ссылка (видна только вне AR) */
+    /* CTA-плашка — видна только вне AR */
     .cta-bar {
-      position:absolute; left:12px; right:12px;
+      position: absolute;
+      left: 12px;
+      right: 12px;
       bottom: calc(90px + env(safe-area-inset-bottom, 0));
-      display:flex; justify-content:center; pointer-events:none; z-index:15;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 15;
     }
-    #preview[ar-status="session-started"] .cta-bar { display:none; }
+    #preview[ar-status="session-started"] .cta-bar { display: none; }
     .cta-bar a {
-      pointer-events:auto; text-decoration:none; padding:12px 16px; border-radius:12px;
-      font:600 14px/1 system-ui; background:#fff; color:#0f1115; border:1px solid #d0d4da; box-shadow:0 6px 22px rgba(0,0,0,.35);
+      pointer-events: auto;
+      text-decoration: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font: 600 14px/1 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #fff;
+      color: #0f1115;
+      border: 1px solid #d0d4da;
+      box-shadow: 0 6px 22px rgba(0,0,0,.35);
     }
 
     /* Круглая кнопка-затвор — показываем ТОЛЬКО в AR (WebXR) */
     .shutter {
-      position:absolute; left:50%; transform:translateX(-50%);
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
       bottom: calc(16px + env(safe-area-inset-bottom, 0));
-      width:64px; height:64px; border-radius:50%;
-      background:#fff; border:3px solid rgba(0,0,0,.2);
-      box-shadow: 0 8px 26px rgba(0,0,0,.45);
-      z-index:25; display:none; cursor:pointer;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid rgba(0,0,0,.25);
+      box-shadow: 0 10px 28px rgba(0,0,0,.45);
+      z-index: 25;
+      display: none;
+      cursor: pointer;
+      transition: transform .06s ease;
     }
-    .shutter::after { /* внутренний круг */
-      content:""; position:absolute; inset:8px; border-radius:50%; background:#fff;
+    .shutter::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: #fff;
     }
-    /* Появляется только когда идёт AR-сессия */
-    #preview[ar-status="session-started"] .shutter { display:block; }
+    .shutter:active { transform: translateX(-50%) scale(0.96); }
 
-    /* Подсказка, если скрин недоступен */
-    .ar-tip {
-      position:absolute; left:50%; transform:translateX(-50%);
-      bottom: calc(90px + env(safe-area-inset-bottom, 0));
-      max-width: calc(100% - 24px);
-      padding:10px 12px; border-radius:12px; text-align:center;
-      font:500 13px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:rgba(255,255,255,.95); color:#0f1115; border:1px solid #d0d4da;
-      box-shadow:0 6px 22px rgba(0,0,0,.35); z-index:24; display:none;
+    /* Появляется только когда идёт AR-сессия */
+    #preview[ar-status="session-started"] .shutter { display: block; }
+
+    /* Вспышка (белый оверлей на мгновение) */
+    .flash {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 24;
+      transition: opacity .15s ease;
     }
-    #preview[ar-status="session-started"].show-tip .ar-tip { display:block; }
+    .flash.show { opacity: 0.9; }
+
+    /* Тост/подсказка */
+    .toast, .ar-tip {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: calc(100% - 24px);
+      padding: 10px 12px;
+      border-radius: 12px;
+      text-align: center;
+      font: 500 13px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: rgba(255,255,255,.96);
+      color: #0f1115;
+      border: 1px solid #d0d4da;
+      box-shadow: 0 6px 22px rgba(0,0,0,.35);
+      z-index: 24;
+      display: none;
+    }
+    .toast { bottom: calc(90px + env(safe-area-inset-bottom, 0)); }
+    .toast.show { display: block; }
+
+    .ar-tip { bottom: calc(90px + env(safe-area-inset-bottom, 0)); }
+    #preview.show-tip .ar-tip { display: block; }
   </style>
 </head>
 <body>
+
   <model-viewer
     id="preview"
     src="Models/Aurus_A_DC_AAI-13HN8_White_3_.glb"
     ios-src="Models/Aurus_A_DC_AAI-13HN8_White.usdz#callToAction=Перейти%20на%20сайт&callToActionTarget=https%3A%2F%2Fnazzar.uz%2F"
-    ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto"
-    camera-controls exposure="0.75" tone-mapping="agx" shadow-intensity="0.2"
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    ar-scale="auto"
+    camera-controls
+    exposure="0.75"
+    tone-mapping="agx"
+    shadow-intensity="0.2"
     interaction-prompt="auto">
 
     <button slot="ar-button" aria-label="Открыть в дополненной реальности">Открыть в AR</button>
 
-    <!-- CTA в 3D -->
-    <div class="cta-bar"><a href="https://nazzar.uz/" target="_blank" rel="noopener">Перейти на сайт</a></div>
+    <!-- CTA — видна только вне AR -->
+    <div class="cta-bar">
+      <a href="https://nazzar.uz/" target="_blank" rel="noopener">Перейти на сайт</a>
+    </div>
 
-    <!-- Круглая кнопка-затвор (видна только в AR) -->
+    <!-- AR-интерфейс -->
     <button class="shutter" id="shutterBtn" type="button" aria-label="Сделать фото"></button>
-
-    <!-- Ненавязчивая подсказка (если программный скрин недоступен) -->
+    <div class="flash" id="flash"></div>
+    <div class="toast" id="toast">Фото сохранено</div>
     <div class="ar-tip" id="arTip">
-      Скриншот недоступен в этом режиме.<br>
-      Сделайте снимок кнопками устройства (Android: Power+Vol-, iOS: Side+Vol+).
+      Не удалось сделать снимок программно.<br>
+      Сделайте скриншот кнопками устройства (Android: Power&nbsp;+&nbsp;Vol−, iOS: Side&nbsp;+&nbsp;Vol+).
     </div>
   </model-viewer>
 
   <script>
     const mv = document.getElementById('preview');
     const shutter = document.getElementById('shutterBtn');
-    const tip = document.getElementById('arTip');
+    const flash = document.getElementById('flash');
+    const toast = document.getElementById('toast');
 
-    // Показываем/скрываем подсказку по событию статуса AR
-    mv.addEventListener('ar-status', (e) => {
-      const started = e.detail.status === 'session-started';
-      mv.classList.toggle('show-tip', false);
-      // В Scene Viewer / Quick Look наша кнопка всё равно не отображается —
-      // страница уходит на задний план, там есть нативный затвор.
-    });
+    // Вспомогательные эффекты
+    function flashOnce() {
+      flash.classList.add('show');
+      setTimeout(() => flash.classList.remove('show'), 120);
+      if (navigator.vibrate) navigator.vibrate(40);
+    }
+    function showToast(text = 'Фото сохранено') {
+      toast.textContent = text;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1400);
+    }
 
-    // Попытка сделать "скриншот вкладки" и сохранить PNG (Chromium)
-    async function tryTabCaptureOnce() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) throw new Error('no-getDisplayMedia');
-      // Пользователь должен подтвердить захват; запрос может прервать AR на некоторых устройствах.
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { preferCurrentTab: true },
-        audio: false
-      });
+    // Сохранить blob как файл
+    function saveBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Попытка захватить текущую вкладку и сделать кадр (Chromium).
+    async function captureTabOnce() {
+      if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('no-getDisplayMedia');
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: { preferCurrentTab: true }, audio: false });
       try {
-        const track = stream.getVideoTracks()[0];
-        const imageCapture = await new ImageCapture(track);
-        const bitmap = await imageCapture.grabFrame();
-        const canvas = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
+        const [track] = stream.getVideoTracks();
+        // Путь 1: ImageCapture, если доступен
+        if ('ImageCapture' in window) {
+          const ic = new ImageCapture(track);
+          const bitmap = await ic.grabFrame();
+          const canvas = Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0);
+          track.stop();
+          return await new Promise(res => canvas.toBlob(res, 'image/png', 1));
+        }
+        // Путь 2: через <video> + drawImage (более совместимый)
+        const vid = document.createElement('video');
+        vid.srcObject = stream;
+        vid.muted = true;
+        await vid.play();
+        await new Promise(r => vid.readyState >= 2 ? r() : vid.addEventListener('loadeddata', r, { once: true }));
+        const canvas = Object.assign(document.createElement('canvas'), { width: vid.videoWidth, height: vid.videoHeight });
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(bitmap, 0, 0);
-        track.stop();
-        const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 1));
-        const url = URL.createObjectURL(blob);
-        const a = Object.assign(document.createElement('a'), { href: url, download: 'ar-shot.png' });
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-        return true;
-      } catch (err) {
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
         stream.getTracks().forEach(t => t.stop());
-        throw err;
+        return await new Promise(res => canvas.toBlob(res, 'image/png', 1));
+      } catch (e) {
+        stream.getTracks().forEach(t => t.stop());
+        throw e;
       }
     }
 
-    // Обработчик затвора: пробуем Tab Capture, иначе показываем подсказку
+    // Клик по затвору
     shutter.addEventListener('click', async () => {
       try {
-        const ok = await tryTabCaptureOnce();
-        if (!ok) mv.classList.add('show-tip');
+        const blob = await captureTabOnce();
+        flashOnce();
+
+        // Пытаемся предложить системный share (если поддерживается)
+        const file = new File([blob], 'ar-shot.png', { type: 'image/png' });
+        if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+          try {
+            await navigator.share({ files: [file], title: 'AR снимок', text: '' });
+            showToast('Поделились снимком');
+            return;
+          } catch { /* пользователь мог отменить — падаем в сохранение */ }
+        }
+
+        // Иначе просто сохраняем в память устройства (Downloads/Файлы)
+        saveBlob(blob, 'ar-shot.png');
+        showToast('Фото сохранено');
       } catch (e) {
-        // Любая ошибка/отказ — подсказка про системный скриншот
+        // Любая ошибка/отказ — показываем подсказку
         mv.classList.add('show-tip');
-        console.warn('Tab capture failed or blocked:', e);
+        console.warn('AR screenshot fallback:', e);
+      }
+    });
+
+    // Прячем подсказку при выходе из AR
+    mv.addEventListener('ar-status', (e) => {
+      if (e.detail.status !== 'session-started') {
+        mv.classList.remove('show-tip');
       }
     });
   </script>
