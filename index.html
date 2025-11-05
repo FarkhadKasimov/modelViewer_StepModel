@@ -2,26 +2,30 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>WebXR AR с Фото и Видео (Модули)</title>
+    <title>WebXR AR с Фото и Видео (Рабочий Скрипт)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* ... (Ваши стили остаются прежними) ... */
+        /* Базовые стили */
         body { margin: 0; overflow: hidden; background-color: #f0f0f0; }
+        /* Стиль для кнопки входа в AR-режим */
         #ar-button {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             padding: 15px 30px; background-color: #4285F4; color: white;
             border: none; border-radius: 8px; font-size: 1.2em; cursor: pointer;
             z-index: 100;
         }
+        /* Панель с кнопками фото/видео, видна только в AR */
         #ui {
             position: absolute; top: 10px; right: 10px; z-index: 100;
             display: none; 
         }
+        /* Общие стили для кнопок захвата */
         .capture-btn {
             background-color: rgba(255, 255, 255, 0.7); border: 2px solid #333;
             color: #333; padding: 10px; margin-left: 5px; border-radius: 50%;
             width: 50px; height: 50px; font-weight: bold; cursor: pointer;
         }
+        /* Стиль для кнопки записи */
         #record-btn { background-color: red; color: white; border: none; }
         #record-btn.recording { border: 4px solid #fff; background-color: darkred; }
     </style>
@@ -30,17 +34,16 @@
     <div id="ar-button"></div>
 
     <div id="ui">
-        <button class="capture-btn" id="photo-btn">📷</button>
-        <button class="capture-btn" id="record-btn">🔴</button>
+        <button class="capture-btn" id="photo-btn" title="Сделать фото">📷</button>
+        <button class="capture-btn" id="record-btn" title="Начать/Остановить запись">🔴</button>
     </div>
 
     <script type="module">
-        // Импортируем модули, используя путь 'jsm'
+        // --- ИМПОРТЫ МОДУЛЕЙ (С ПОЛНЫМИ URL) ---
         import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
         import { ARButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/ARButton.js';
         import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
         
-        // ... (остальной код остается почти тем же, но без let controller, так как не используется) ...
         let camera, scene, renderer;
         let recording = false;
         let mediaRecorder;
@@ -51,40 +54,46 @@
         animate();
 
         function init() {
+            // 1. НАСТРОЙКА СЦЕНЫ И КАМЕРЫ
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
+            // 2. РЕНДЕРЕР (WebGL)
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
+            renderer.xr.enabled = true; // Включаем WebXR
             container.appendChild(renderer.domElement);
 
+            // 3. СВЕТ
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 3);
             scene.add(light);
 
-            // КНОПКА AR - теперь ARButton импортирован как модуль
+            // 4. КНОПКА AR (Используем импортированный ARButton)
             const arButtonContainer = document.getElementById('ar-button');
             document.body.appendChild(ARButton.createButton(renderer, {
+                // Требуем обнаружение поверхностей для AR
                 requiredFeatures: ['hit-test'], 
-                domElement: arButtonContainer, // Используем контейнер
+                domElement: arButtonContainer, 
+                // Показываем/скрываем UI-кнопки при старте/завершении сессии
                 onSessionStart: () => { document.getElementById('ui').style.display = 'block'; },
                 onSessionEnd: () => { document.getElementById('ui').style.display = 'none'; }
             }));
 
-            // ЗАГРУЗКА МОДЕЛИ
-            const loader = new GLTFLoader(); // Теперь GLTFLoader импортирован
+            // 5. ЗАГРУЗКА МОДЕЛИ
+            const loader = new GLTFLoader(); 
             loader.load(
                 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
                 function (gltf) {
                     const model = gltf.scene;
                     model.scale.set(0.2, 0.2, 0.2);
+                    // Размещаем модель перед камерой в начальной сцене
                     model.position.set(0, 0, -1); 
                     scene.add(model);
                 }
             );
 
-            // ОБРАБОТЧИКИ КНОПОК
+            // 6. ОБРАБОТЧИКИ КНОПОК
             document.getElementById('photo-btn').addEventListener('click', capturePhoto);
             document.getElementById('record-btn').addEventListener('click', toggleRecording);
         }
@@ -97,9 +106,10 @@
             renderer.render(scene, camera);
         }
 
-        // --- ФУНКЦИИ ЗАХВАТА --- (Остаются без изменений)
+        // --- ФУНКЦИИ ЗАХВАТА ---
 
         function capturePhoto() {
+            // Захват текущего кадра из Canvas
             const dataURL = renderer.domElement.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = dataURL;
@@ -114,7 +124,9 @@
             const recordBtn = document.getElementById('record-btn');
 
             if (!recording) {
-                const stream = renderer.domElement.captureStream(30);
+                // НАЧАТЬ ЗАПИСЬ
+                // captureStream захватывает видеопоток из WebGL Canvas
+                const stream = renderer.domElement.captureStream(30); 
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
 
                 mediaRecorder.ondataavailable = function(e) {
@@ -125,23 +137,25 @@
 
                 mediaRecorder.onstop = function() {
                     downloadVideo();
-                    recordedChunks.length = 0;
+                    recordedChunks.length = 0; // Очищаем массив после скачивания
                 };
 
                 mediaRecorder.start();
                 recording = true;
                 recordBtn.classList.add('recording');
-                recordBtn.innerText = '◼';
+                recordBtn.innerText = '◼'; // Кнопка "Стоп"
 
             } else {
+                // ОСТАНОВИТЬ ЗАПИСЬ
                 mediaRecorder.stop();
                 recording = false;
                 recordBtn.classList.remove('recording');
-                recordBtn.innerText = '🔴';
+                recordBtn.innerText = '🔴'; // Кнопка "Запись"
             }
         }
 
         function downloadVideo() {
+            // Создаем видеофайл из записанных частей
             const blob = new Blob(recordedChunks, { type: 'video/webm' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
