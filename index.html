@@ -6,19 +6,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>viewer + AR shutter</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Получаем базовую ссылку сайта (без имени файла, без параметров)
-            // location.origin дает: "протокол://домен:порт"
-            const baseUrl = window.location.origin;
+            // 1. Получаем базовый URL сайта (https://domain.com)
+            // Используем window.location.protocol + '//' + window.location.host 
+            // вместо origin, чтобы быть уверенными, что протокол будет включен
+            let baseUrl = window.location.origin;
+
+            // 🚨 КРИТИЧЕСКИ ВАЖНО для Quick Look: Ссылка должна быть HTTPS.
+            // Если вы тестируете на localhost (http), Quick Look не будет работать.
+            if (baseUrl.startsWith('http://') && !baseUrl.includes('localhost')) {
+                // Если протокол HTTP, но это не localhost, то есть риск, что не сработает
+                console.warn("AR Quick Look может не работать: URL не использует HTTPS.");
+            }
 
             // 2. Определяем нужные части для формирования нового URL
             const modelPath = '/Models/panda4.usdz';
-            const callToAction = '#callToAction=%D0%9F%D0%B5%D1%80%D0%B5%D0%B9%D1%82%D0%B8%20%D0%BD%D0%B0%20%D1%81%D0%B0%D0%B9%D1%82&callToActionTarget=https%3A%2F%2Fnazzar.uz%2F';
+            // Параметры Call to Action
+            const callToActionParams = '#callToAction=%D0%9F%D0%B5%D1%80%D0%B5%D0%B9%D1%82%D0%B8%20%D0%BD%D0%B0%20%D1%81%D0%B0%D0%B9%D1%82&callToActionTarget=https%3A%2F%2Fnazzar.uz%2F';
 
             // 3. Формируем новый полный ios-src
-            const newIosSrc = baseUrl + modelPath + callToAction;
+            const newIosSrc = baseUrl + modelPath + callToActionParams;
 
             // 4. Находим элемент <model-viewer>
             const modelViewer = document.getElementById('preview');
@@ -174,16 +183,15 @@
     </style>
 </head>
 
-<body> <model-viewer id="preview" src="Models/panda4_2_.glb"
-        ios-src="" 
-        ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto" camera-controls exposure="0.75" tone-mapping="agx"
-        shadow-intensity="0.2" interaction-prompt="auto" autoplay data-title="panda4 (2)"
-        data-link="https://nazzar.uz/"> <button slot="ar-button" aria-label="Открыть в дополненной реальности">Открыть в
-                AR</button> <button class="shutter" id="shutterBtn" type="button" aria-label="Сделать фото"></button>
+<body> <model-viewer id="preview" src="Models/panda4_2_.glb" ios-src="" ar ar-modes="webxr scene-viewer quick-look"
+        ar-scale="auto" camera-controls exposure="0.75" tone-mapping="agx" shadow-intensity="0.2"
+        interaction-prompt="auto" autoplay data-title="panda4 (2)" data-link="https://nazzar.uz/"> <button
+            slot="ar-button" aria-label="Открыть в дополненной реальности">Открыть в
+            AR</button> <button class="shutter" id="shutterBtn" type="button" aria-label="Сделать фото"></button>
         <div class="flash" id="flash"></div>
         <div class="toast" id="toast">Фото сохранено</div>
         <div class="ar-tip" id="arTip">Не удалось сделать снимок программно.<br>Сделайте скриншот кнопками устройства
-                (Android: Power&nbsp;+&nbsp;Vol−, iOS: Side&nbsp;+&nbsp;Vol+).</div>
+            (Android: Power&nbsp;+&nbsp;Vol−, iOS: Side&nbsp;+&nbsp;Vol+).</div>
     </model-viewer>
     <script>
         const mv = document.getElementById("preview");
@@ -302,8 +310,8 @@
                     type: "image/png"
                 });
                 if (navigator.canShare?.({
-                        files: [file]
-                    }) && navigator.share) {
+                    files: [file]
+                }) && navigator.share) {
                     try {
                         await navigator.share({
                             files: [file],
@@ -312,7 +320,7 @@
                         });
                         showToast("Поделились снимком");
                         return;
-                    } catch {}
+                    } catch { }
                 }
                 saveBlob(blob, "ar-shot.png");
                 showToast("Фото сохранено");
