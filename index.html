@@ -163,7 +163,25 @@
         <div class="ar-tip" id="arTip">Не удалось сделать снимок программно.<br>Сделайте скриншот кнопками устройства
             (Android: Power&nbsp;+&nbsp;Vol−, iOS: Side&nbsp;+&nbsp;Vol+).</div>
     </model-viewer>
-    <script>    const mv = document.getElementById("preview"); const shutter = document.getElementById("shutterBtn"); const flash = document.getElementById("flash"); const toast = document.getElementById("toast"); const arBtn = mv.querySelector('button[slot="ar-button"]'); function isAndroid() { return /Android/i.test(navigator.userAgent); } function buildSceneViewerIntent({ file, title, link }) { const q = new URLSearchParams({ file, title, ...(link ? { link } : {}) }).toString(); return "intent://arvr.google.com/scene-viewer/1.0?" + q + "#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;end;"; } arBtn.addEventListener("click", (e) => { if (!isAndroid()) return; e.stopPropagation(); e.preventDefault(); const glbUrl = new URL(mv.getAttribute("src"), location.href).href; const title = mv.getAttribute("data-title") || "Model"; const link = mv.getAttribute("data-link") || ""; const intent = buildSceneViewerIntent({ file: glbUrl, title, link }); window.location.href = intent; }); function flashOnce() { flash.classList.add("show"); setTimeout(() => flash.classList.remove("show"), 120); if (navigator.vibrate) navigator.vibrate(40); } function showToast(text = "Фото сохранено") { toast.textContent = text; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 1400); } function saveBlob(blob, filename) { const url = URL.createObjectURL(blob); const a = Object.assign(document.createElement("a"), { href: url, download: filename }); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); } async function captureTabOnce() { if (!navigator.mediaDevices?.getDisplayMedia) throw new Error("no-getDisplayMedia"); const stream = await navigator.mediaDevices.getDisplayMedia({ video: { preferCurrentTab: true }, audio: false }); try { const [track] = stream.getVideoTracks(); if ("ImageCapture" in window) { const ic = new ImageCapture(track); const bitmap = await ic.grabFrame(); const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height }); const ctx = canvas.getContext("2d"); ctx.drawImage(bitmap, 0, 0); track.stop(); return await new Promise(res => canvas.toBlob(res, "image/png", 1)); } const vid = document.createElement("video"); vid.srcObject = stream; vid.muted = true; await vid.play(); await new Promise(r => vid.readyState >= 2 ? r() : vid.addEventListener("loadeddata", r, { once: true })); const canvas = Object.assign(document.createElement("canvas"), { width: vid.videoWidth, height: vid.videoHeight }); const ctx = canvas.getContext("2d"); ctx.drawImage(vid, 0, 0, canvas.width, canvas.height); stream.getTracks().forEach(t => t.stop()); return await new Promise(res => canvas.toBlob(res, "image/png", 1)); } catch (e) { stream.getTracks().forEach(t => t.stop()); throw e; } } shutter.addEventListener("click", async () => { try { const blob = await captureTabOnce(); flashOnce(); const file = new File([blob], "ar-shot.png", { type: "image/png" }); if (navigator.canShare?.({ files: [file] }) && navigator.share) { try { await navigator.share({ files: [file], title: "AR снимок", text: "" }); showToast("Поделились снимком"); return; } catch { } } saveBlob(blob, "ar-shot.png"); showToast("Фото сохранено"); } catch (e) { mv.classList.add("show-tip"); console.warn("AR screenshot fallback:", e); } }); mv.addEventListener("ar-status", (e) => { if (e.detail.status !== "session-started") mv.classList.remove("show-tip"); });  </script>
+    
+    <p style="margin-top: 40px;">Проверьте консоль браузера после нажатия кнопки "Order Now" в AR Quick Look.</p>
+
+    <script>
+        const modelViewer = document.getElementById('model-astronaut');
+
+        // 3. Отлавливаем специальное событие, которое <model-viewer> 
+        //    перехватывает из AR Quick Look
+        modelViewer.addEventListener('quick-look-button-tapped', (event) => {
+            console.log('✅ Кнопка Call To Action в AR Quick Look нажата!');
+            
+            // --- СЮДА ВСТАВЬТЕ ВАШУ ЛОГИКУ ---
+            alert('Событие нажатия кнопки в AR Quick Look успешно перехвачено! Перенаправляем на заказ.');
+            
+            // Пример: перенаправление на страницу оформления заказа
+            window.location.href = 'https://example.com/order-astronaut'; 
+            // --- КОНЕЦ ЛОГИКИ ---
+        });
+    </script>
 </body>
 
 </html>
